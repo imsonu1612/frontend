@@ -3,11 +3,45 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { NhostProvider } from '@nhost/react';
+import { nhost } from './nhost';
+import { createClient, Provider, cacheExchange, fetchExchange, subscriptionExchange } from 'urql';
+import { createClient as createWSClient } from 'graphql-ws';
+
+const wsClient = createWSClient({
+  url: nhost.graphql.wsUrl(),
+});
+
+const client = createClient({
+  url: nhost.graphql.httpUrl,
+  exchanges: [
+    cacheExchange,
+    fetchExchange,
+    subscriptionExchange({
+      forwardSubscription: (operation) => ({
+        subscribe: (sink) => ({
+          unsubscribe: wsClient.subscribe(operation, sink),
+        }),
+      }),
+    }),
+  ],
+  fetchOptions: () => {
+    return {
+      headers: {
+        Authorization: `Bearer ${nhost.auth.getAccessToken()}`,
+      },
+    };
+  },
+});
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <NhostProvider nhost={nhost}>
+      <Provider value={client}>
+        <App />
+      </Provider>
+    </NhostProvider>
   </React.StrictMode>
 );
 
